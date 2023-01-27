@@ -1,0 +1,134 @@
+cgroups
+=======
+
+Stress test
+-----------
+- Terminal 1
+# mkdir /sys/fs/cgroup/stresstest
+# echo pid_bash > /sys/fs/cgroup/stresstest/cgroup.procs
+# echo 50000 100000 > /sys/fs/cgroup/stresstest/cpu.max
+# echo 10000 100000 > /sys/fs/cgroup/stresstest/cpu.max
+
+- Terminal 2
+$ bash
+$ echo $$
+$ dd if=/dev/zero of=/dev/null
+
+
+Fork bomb
+---------
+- Terminal 1
+# mkdir /sys/fs/cgroup/forkbomb
+# echo pid_bash > /sys/fs/cgroup/forkbomb/cgroup.procs
+# echo 10 > /sys/fs/cgroup/forkbomb/pids.max
+# echo 1 > /sys/fs/cgroup/forkbomb/pids.max
+
+- Terminal 2
+$ bash
+$ echo $$
+$ :(){ :|:& };:
+
+- Terminal 3
+$ watch -n 1 'ps a'
+
+
+namespaces
+==========
+
+MOUNT - namespace
+-----------------
+- Terminal 1
+# mkdir source destination; touch source/readme
+# unshare --mount bash
+# findmnt destination
+# mount --bind source destination
+# findmnt destination
+
+- Terminal 2
+# findmnt destination
+
+PID - namespace
+---------------
+- Terminal 1
+# unshare --pid --fork chroot alpine sh
+# ps aux
+# mount -t proc proc proc
+# ps aux
+
+UTS - namespace
+---------------
+- Terminal 1
+# hostname
+# unshare --uts bash
+# hostname EuskalHack
+# hostname
+# bash
+# exit
+# exit
+# hostname
+
+NETWORK - namespace
+-------------------
+- Terminal 1
+# unshare --net bash
+# ip address
+# echo $$
+# ip link set ve1 up
+# ip address
+# ip address add 192.168.100.20/24 dev ve1
+# ip route
+# ping 192.168.100.10
+# ping 10.0.2.15
+# ip route add default via 192.168.100.10
+# ping 10.0.2.15
+# ping 8.8.8.8
+
+- Terminal 2
+# ip link add ve1 netns bash_process_id type veth peer name ve2 netns 1
+# ip address
+# ip link set ve2 up
+# ip address add 192.168.100.10/24 dev ve2
+# iptables -I FORWARD -o enp0s3 -s 192.168.100.0/24 -j ACCEPT
+# iptables -I FORWARD -i enp0s3 -d 192.168.100.0/24 -j ACCEPT
+# iptables -t nat -A POSTROUTING -o enp0s3 -s 192.168.100.0/24 -j MASQUERADE
+
+USER - namespace
+----------------
+- Terminal 1
+$ unshare --user bash
+$ id
+$ echo $$
+$ id
+
+- Terminal 2
+# echo 0 1000 1 > /proc/bash_pid/uid_map
+# echo 0 1000 1 > /proc/bash_pid/gid_map
+
+
+capabilities
+============
+- Terminal 1
+# getcap /bin/ping
+# setcap -r /bin/ping
+# setcap "cap_net_raw+ep" /bin/ping
+
+- Terminal 2
+$ ping 8.8.8.8
+$ ping 8.8.8.8
+$ ping 8.8.8.8
+
+
+overlayfs
+=========
+- Terminal 1
+# mkdir lower1 lower2 lower3 upper work merged
+# touch lower1/file1 lower2/file2 lower3/file3 upper/file4
+# mount -t overlay overlay -o lowerdir=/root/lower3:/root/lower2:/root/lower1,upperdir=/root/upper,workdir=/root/work /root/merged
+# ls merged/
+# touch merged/file5
+# mv merged/file2 merged/file6
+# echo file3 > merged/file3
+# umount /root/merged
+# ls -l lower3
+# cat lower3/file3
+# ls -l upper
